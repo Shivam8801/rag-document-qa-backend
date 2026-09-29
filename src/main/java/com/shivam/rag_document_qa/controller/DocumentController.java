@@ -1,17 +1,83 @@
 package com.shivam.rag_document_qa.controller;
 
+import com.shivam.rag_document_qa.dto.DocumentResponse;
+import com.shivam.rag_document_qa.dto.UpdateDocumentRequest;
+import com.shivam.rag_document_qa.service.DocumentService;
+import jakarta.validation.Valid;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
-@RequestMapping
+@RequestMapping("/api/documents")
+@Tag(name = "Documents", description = "Upload, browse, rename, and delete PDF documents and their indexed chunks.")
 public class DocumentController {
-    @GetMapping
-    public String healthCheck()
-    {
-        return "Application is Running!";
+
+    private final DocumentService documentService;
+
+    public DocumentController(DocumentService documentService) {
+        this.documentService = documentService;
     }
 
+    @PostMapping({"", "/upload"})
+    @Operation(summary = "Upload PDF documents",
+            description = "Accepts one `file` part or multiple repeated `files` parts. Extracts each PDF page, "
+                    + "splits the text into page-aware chunks, generates embeddings, and indexes them in pgvector.")
+    public ResponseEntity<List<DocumentResponse>> upload(
+            @RequestParam(value = "files", required = false) List<MultipartFile> files,
+            @RequestParam(value = "file", required = false) MultipartFile file) {
+        List<MultipartFile> uploads = new ArrayList<>();
+        if (files != null) {
+            uploads.addAll(files);
+        }
+        if (file != null) {
+            uploads.add(file);
+        }
+        List<DocumentResponse> responses = documentService.uploadAll(uploads).stream()
+                .map(DocumentResponse::fromDocument).toList();
+        return ResponseEntity.status(HttpStatus.CREATED).body(responses);
+    }
 
+    @GetMapping
+    @Operation(summary = "List indexed documents",
+            description = "Returns metadata for all successfully processed documents without exposing extracted text.")
+    public List<DocumentResponse> list() {
+        return documentService.list().stream().map(DocumentResponse::fromDocument).toList();
+    }
+
+    @GetMapping("/{id}")
+    @Operation(summary = "Get document metadata",
+            description = "Returns metadata, page count, and indexed chunk count for the requested document.")
+    public DocumentResponse get(@PathVariable UUID id) {
+        return DocumentResponse.fromDocument(documentService.get(id));
+    }
+
+    @PutMapping("/{id}")
+    @Operation(summary = "Rename a document",
+            description = "Changes the display name used for the document and its source citations.")
+    public DocumentResponse update(@PathVariable UUID id, @Valid @RequestBody UpdateDocumentRequest request) {
+        return DocumentResponse.fromDocument(documentService.rename(id, request.name()));
+    }
+
+    @DeleteMapping("/{id}")
+    @Operation(summary = "Delete a document",
+            description = "Removes document metadata and all associated vectors from pgvector.")
+    public ResponseEntity<Void> delete(@PathVariable UUID id) {
+        documentService.delete(id);
+        return ResponseEntity.noContent().build();
+    }
 }
