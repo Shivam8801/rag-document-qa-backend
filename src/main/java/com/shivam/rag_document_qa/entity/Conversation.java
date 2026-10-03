@@ -36,7 +36,7 @@ public class Conversation {
         this.updatedAt = this.createdAt;
     }
 
-    public void touch() {
+    public void updateLastModifiedTime() {
         this.updatedAt = Instant.now();
     }
 

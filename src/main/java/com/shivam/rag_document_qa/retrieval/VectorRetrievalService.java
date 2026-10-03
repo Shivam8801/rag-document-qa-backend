@@ -38,7 +38,7 @@ public class VectorRetrievalService {
         this.documentRepository = documentRepository;
     }
 
-    public List<CitationResponse> search(AskRequest request) {
+    public List<CitationResponse> findRelevantSources(AskRequest request) {
         int topK = request.topK() == null ? properties.getDefaultTopK() : request.topK();
         if (topK < 1 || topK > properties.getMaxTopK()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_TOP_K",
@@ -66,11 +66,12 @@ public class VectorRetrievalService {
         Map<String, CitationResponse> unique = new LinkedHashMap<>();
         Map<UUID, Optional<com.shivam.rag_document_qa.entity.Document>> sourceDocuments = new LinkedHashMap<>();
         if (documentIds.isEmpty()) {
-            collect(search(request.question(), topK, threshold, null), unique, sourceDocuments);
+            collectSearchResults(searchVectorStore(request.question(), topK, threshold, null),
+                    unique, sourceDocuments);
         } else {
             for (UUID documentId : documentIds) {
                 FilterExpressionBuilder filter = new FilterExpressionBuilder();
-                collect(search(request.question(), topK, threshold,
+                collectSearchResults(searchVectorStore(request.question(), topK, threshold,
                         filter.eq("documentId", documentId.toString()).build()), unique, sourceDocuments);
             }
         }
@@ -83,8 +84,9 @@ public class VectorRetrievalService {
         return results;
     }
 
-    private List<Document> search(String question, int topK, double threshold,
-                                  org.springframework.ai.vectorstore.filter.Filter.Expression filterExpression) {
+    private List<Document> searchVectorStore(
+            String question, int topK, double threshold,
+            org.springframework.ai.vectorstore.filter.Filter.Expression filterExpression) {
         SearchRequest.Builder builder = SearchRequest.builder()
                 .query(question)
                 .topK(topK)
@@ -100,8 +102,9 @@ public class VectorRetrievalService {
         }
     }
 
-    private void collect(List<Document> documents, Map<String, CitationResponse> unique,
-                         Map<UUID, Optional<com.shivam.rag_document_qa.entity.Document>> sourceDocuments) {
+    private void collectSearchResults(
+            List<Document> documents, Map<String, CitationResponse> unique,
+            Map<UUID, Optional<com.shivam.rag_document_qa.entity.Document>> sourceDocuments) {
         if (documents == null) {
             return;
         }
@@ -114,8 +117,8 @@ public class VectorRetrievalService {
                 if (sourceDocument.isEmpty()) {
                     continue;
                 }
-                int pageNumber = integer(metadata.get("pageNumber"));
-                int chunkIndex = integer(metadata.get("chunkIndex"));
+                int pageNumber = readIntegerMetadata(metadata.get("pageNumber"));
+                int chunkIndex = readIntegerMetadata(metadata.get("chunkIndex"));
                 double score = document.getScore() == null ? 0.0 : document.getScore();
                 CitationResponse citation = new CitationResponse(documentId, sourceDocument.get().getFileName(),
                         document.getId(), pageNumber, chunkIndex, document.getText(), score);
@@ -126,7 +129,7 @@ public class VectorRetrievalService {
         }
     }
 
-    private int integer(Object value) {
+    private int readIntegerMetadata(Object value) {
         if (value instanceof Number number) {
             return number.intValue();
         }

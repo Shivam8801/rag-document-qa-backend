@@ -33,38 +33,39 @@ public class ConversationController {
     @PostMapping
     @Operation(summary = "Create a conversation",
             description = "Creates an empty conversation, optionally with a title. Use its ID in subsequent question requests.")
-    public ResponseEntity<ConversationResponse> create(
+    public ResponseEntity<ConversationResponse> createConversation(
             @Valid @RequestBody(required = false) CreateConversationRequest request) {
-        ConversationResponse response = conversationService.create(request == null ? null : request.title());
+        ConversationResponse response =
+                conversationService.createConversation(request == null ? null : request.title());
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @GetMapping
     @Operation(summary = "List conversations",
             description = "Returns conversation metadata ordered by most recently updated.")
-    public List<ConversationResponse> list() {
-        return conversationService.list();
+    public List<ConversationResponse> listConversations() {
+        return conversationService.listConversations();
     }
 
     @GetMapping("/{id}")
     @Operation(summary = "Get a conversation",
             description = "Returns metadata for the specified conversation.")
-    public ConversationResponse get(@PathVariable UUID id) {
-        return conversationService.get(id);
+    public ConversationResponse getConversation(@PathVariable UUID id) {
+        return conversationService.getConversation(id);
     }
 
     @GetMapping("/{id}/messages")
     @Operation(summary = "List conversation messages",
             description = "Returns the conversation's user and assistant messages in chronological order, including stored source citations.")
-    public List<ChatMessageResponse> messages(@PathVariable UUID id) {
-        return conversationService.messages(id);
+    public List<ChatMessageResponse> getConversationMessages(@PathVariable UUID id) {
+        return conversationService.getConversationMessages(id);
     }
 
     @DeleteMapping("/{id}")
     @Operation(summary = "Delete a conversation",
             description = "Deletes a conversation and its stored messages.")
-    public ResponseEntity<Void> delete(@PathVariable UUID id) {
-        conversationService.delete(id);
+    public ResponseEntity<Void> deleteConversation(@PathVariable UUID id) {
+        conversationService.deleteConversation(id);
         return ResponseEntity.noContent().build();
     }
 }

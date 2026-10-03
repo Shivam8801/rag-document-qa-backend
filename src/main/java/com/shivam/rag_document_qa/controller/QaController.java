@@ -27,7 +27,7 @@ public class QaController {
             description = "Retrieves relevant chunks from pgvector, optionally filters by document IDs, "
                     + "uses recent conversation history when supplied, and returns an answer with source citations. "
                     + "Omit conversationId to start a new conversation.")
-    public AskResponse ask(@Valid @RequestBody AskRequest request) {
-        return conversationService.ask(request);
+    public AskResponse answerQuestion(@Valid @RequestBody AskRequest request) {
+        return conversationService.answerQuestion(request);
     }
 }

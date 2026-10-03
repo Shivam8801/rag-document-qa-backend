@@ -55,34 +55,34 @@ public class ConversationService {
         this.properties = properties;
     }
 
-    public ConversationResponse create(String requestedTitle) {
+    public ConversationResponse createConversation(String requestedTitle) {
         String title = requestedTitle == null || requestedTitle.isBlank() ? "New conversation" : requestedTitle.trim();
-        return ConversationResponse.from(conversationRepository.save(new Conversation(title)));
+        return ConversationResponse.fromConversation(conversationRepository.save(new Conversation(title)));
     }
 
-    public List<ConversationResponse> list() {
+    public List<ConversationResponse> listConversations() {
         return conversationRepository.findAll(Sort.by(Sort.Direction.DESC, "updatedAt")).stream()
-                .map(ConversationResponse::from).toList();
+                .map(ConversationResponse::fromConversation).toList();
     }
 
-    public ConversationResponse get(UUID id) {
-        return ConversationResponse.from(findConversation(id));
+    public ConversationResponse getConversation(UUID id) {
+        return ConversationResponse.fromConversation(requireConversation(id));
     }
 
     @Transactional
-    public void delete(UUID id) {
-        Conversation conversation = findConversation(id);
+    public void deleteConversation(UUID id) {
+        Conversation conversation = requireConversation(id);
         messageRepository.deleteByConversationId(conversation.getId());
         conversationRepository.delete(conversation);
     }
 
-    public List<ChatMessageResponse> messages(UUID id) {
-        findConversation(id);
+    public List<ChatMessageResponse> getConversationMessages(UUID id) {
+        requireConversation(id);
         return messageRepository.findByConversationIdOrderByCreatedAtAsc(id).stream()
-                .map(this::toResponse).toList();
+                .map(this::toChatMessageResponse).toList();
     }
 
-    public AskResponse ask(AskRequest request) {
+    public AskResponse answerQuestion(AskRequest request) {
         Conversation conversation;
         if (request.conversationId() == null) {
             String title = request.question().trim();
@@ -91,12 +91,12 @@ public class ConversationService {
             }
             conversation = conversationRepository.save(new Conversation(title));
         } else {
-            conversation = findConversation(request.conversationId());
+            conversation = requireConversation(request.conversationId());
         }
         log.info("Processing question for conversation {}", conversation.getId());
 
-        List<ChatMessage> history = loadRecentHistory(conversation.getId());
-        List<CitationResponse> citations = retrievalService.search(request);
+        List<ChatMessage> history = loadRecentConversationHistory(conversation.getId());
+        List<CitationResponse> citations = retrievalService.findRelevantSources(request);
         messageRepository.save(new ChatMessage(conversation, ChatMessage.Role.USER, request.question(), null));
 
         String answer;
@@ -105,7 +105,7 @@ public class ConversationService {
         } else {
             try {
                 answer = chatClient.prompt()
-                        .messages(promptBuilder.build(request.question(), history, citations))
+                        .messages(promptBuilder.buildGroundedAnswerMessages(request.question(), history, citations))
                         .call()
                         .content();
                 if (answer == null || answer.isBlank()) {
@@ -118,13 +118,13 @@ public class ConversationService {
             }
         }
         messageRepository.save(new ChatMessage(conversation, ChatMessage.Role.ASSISTANT, answer,
-                serializeCitations(citations)));
-        conversation.touch();
+                serializeSourceCitations(citations)));
+        conversation.updateLastModifiedTime();
         conversationRepository.save(conversation);
         return new AskResponse(conversation.getId(), answer, List.copyOf(citations));
     }
 
-    private List<ChatMessage> loadRecentHistory(UUID conversationId) {
+    private List<ChatMessage> loadRecentConversationHistory(UUID conversationId) {
         int limit = properties.getMaxHistoryMessages();
         if (limit <= 0) {
             return List.of();
@@ -136,12 +136,12 @@ public class ConversationService {
         return List.copyOf(ordered);
     }
 
-    private Conversation findConversation(UUID id) {
+    private Conversation requireConversation(UUID id) {
         return conversationRepository.findById(id).orElseThrow(() ->
                 new ApiException(HttpStatus.NOT_FOUND, "CONVERSATION_NOT_FOUND", "Conversation not found."));
     }
 
-    private String serializeCitations(List<CitationResponse> citations) {
+    private String serializeSourceCitations(List<CitationResponse> citations) {
         try {
             return objectMapper.writeValueAsString(citations);
         } catch (JsonProcessingException exception) {
@@ -149,7 +149,7 @@ public class ConversationService {
         }
     }
 
-    private ChatMessageResponse toResponse(ChatMessage message) {
+    private ChatMessageResponse toChatMessageResponse(ChatMessage message) {
         List<CitationResponse> citations = List.of();
         if (message.getCitationsJson() != null && !message.getCitationsJson().isBlank()) {
             try {

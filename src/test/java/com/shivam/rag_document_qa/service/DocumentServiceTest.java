@@ -42,7 +42,7 @@ class DocumentServiceTest {
     private DocumentService service;
 
     @BeforeEach
-    void setUp() {
+    void initializeServiceWithTestConfiguration() {
         properties.setChunkSize(1000);
         properties.setChunkOverlap(100);
         properties.setMaxUploadBytes(1_000_000);
@@ -54,7 +54,8 @@ class DocumentServiceTest {
 
     @Test
     void indexesEachPageChunkWithStableIdAndRequiredMetadata() throws IOException {
-        List<Document> uploaded = service.uploadAll(List.of(pdfUpload("report.pdf", "first page", "second page")));
+        List<Document> uploaded =
+                service.uploadDocuments(List.of(createPdfMultipartFile("report.pdf", "first page", "second page")));
 
         assertThat(uploaded).hasSize(1);
         Document saved = uploaded.get(0);
@@ -66,7 +67,7 @@ class DocumentServiceTest {
         assertThat(vectors).hasSize(2);
         assertThat(vectors).allSatisfy(vector -> {
             int chunkIndex = (int) vector.getMetadata().get("chunkIndex");
-            assertThat(vector.getId()).isEqualTo(DocumentService.vectorId(saved.getId(), chunkIndex));
+            assertThat(vector.getId()).isEqualTo(DocumentService.createStableVectorId(saved.getId(), chunkIndex));
             assertThat(vector.getMetadata())
                     .containsEntry("documentId", saved.getId().toString())
                     .containsEntry("documentName", "report.pdf");
@@ -83,16 +84,16 @@ class DocumentServiceTest {
         Document document = new Document("report.pdf", "report.pdf", "application/pdf", 100, 2, 3);
         when(documentRepository.findById(id)).thenReturn(Optional.of(document));
 
-        service.delete(id);
+        service.deleteDocument(id);
 
         ArgumentCaptor<List<String>> idsCaptor = ArgumentCaptor.captor();
         InOrder order = inOrder(vectorStore, documentRepository);
         order.verify(vectorStore).delete(idsCaptor.capture());
         order.verify(documentRepository).delete(document);
         assertThat(idsCaptor.getValue()).containsExactly(
-                DocumentService.vectorId(id, 0),
-                DocumentService.vectorId(id, 1),
-                DocumentService.vectorId(id, 2));
+                DocumentService.createStableVectorId(id, 0),
+                DocumentService.createStableVectorId(id, 1),
+                DocumentService.createStableVectorId(id, 2));
     }
 
     @Test
@@ -102,7 +103,7 @@ class DocumentServiceTest {
         when(documentRepository.findById(id)).thenReturn(Optional.of(document));
         doThrow(new IllegalStateException("vector store unavailable")).when(vectorStore).delete(anyList());
 
-        assertThatThrownBy(() -> service.delete(id))
+        assertThatThrownBy(() -> service.deleteDocument(id))
                 .isInstanceOf(ApiException.class)
                 .hasMessageContaining("vectors could not be deleted");
 
@@ -113,7 +114,8 @@ class DocumentServiceTest {
     void removesVectorsAndMetadataWhenIndexingFails() throws IOException {
         doThrow(new IllegalStateException("embedding service unavailable")).when(vectorStore).add(anyList());
 
-        assertThatThrownBy(() -> service.uploadAll(List.of(pdfUpload("report.pdf", "page one", "page two"))))
+        assertThatThrownBy(() -> service.uploadDocuments(
+                List.of(createPdfMultipartFile("report.pdf", "page one", "page two"))))
                 .isInstanceOf(ApiException.class)
                 .hasMessageContaining("could not be indexed");
 
@@ -123,12 +125,12 @@ class DocumentServiceTest {
         ArgumentCaptor<List<String>> idsCaptor = ArgumentCaptor.captor();
         verify(vectorStore).delete(idsCaptor.capture());
         assertThat(idsCaptor.getValue()).containsExactly(
-                DocumentService.vectorId(savedDocument.getId(), 0),
-                DocumentService.vectorId(savedDocument.getId(), 1));
+                DocumentService.createStableVectorId(savedDocument.getId(), 0),
+                DocumentService.createStableVectorId(savedDocument.getId(), 1));
         verify(documentRepository).delete(savedDocument);
     }
 
-    private MultipartFile pdfUpload(String filename, String... pageTexts) throws IOException {
+    private MultipartFile createPdfMultipartFile(String filename, String... pageTexts) throws IOException {
         byte[] pdf;
         try (PDDocument document = new PDDocument(); ByteArrayOutputStream output = new ByteArrayOutputStream()) {
             for (String text : pageTexts) {

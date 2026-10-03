@@ -47,7 +47,7 @@ class ConversationServiceTest {
     private ConversationService service;
 
     @BeforeEach
-    void setUp() {
+    void initializeServiceWithTestConfiguration() {
         properties.setMaxHistoryMessages(4);
         when(chatClientBuilder.build()).thenReturn(chatClient);
         when(conversationRepository.save(any(Conversation.class)))
@@ -60,8 +60,8 @@ class ConversationServiceTest {
 
     @Test
     void createsConversationWithTrimmedOrDefaultTitle() {
-        var titled = service.create("  Project questions  ");
-        var untitled = service.create("  ");
+        var titled = service.createConversation("  Project questions  ");
+        var untitled = service.createConversation("  ");
 
         assertThat(titled.title()).isEqualTo("Project questions");
         assertThat(untitled.title()).isEqualTo("New conversation");
@@ -74,7 +74,7 @@ class ConversationServiceTest {
         Conversation conversation = new Conversation("Questions");
         when(conversationRepository.findById(id)).thenReturn(Optional.of(conversation));
 
-        service.delete(id);
+        service.deleteConversation(id);
 
         InOrder order = inOrder(messageRepository, conversationRepository);
         order.verify(messageRepository).deleteByConversationId(conversation.getId());
@@ -86,7 +86,7 @@ class ConversationServiceTest {
         UUID id = UUID.randomUUID();
         when(conversationRepository.findById(id)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.get(id))
+        assertThatThrownBy(() -> service.getConversation(id))
                 .isInstanceOf(ApiException.class)
                 .hasMessage("Conversation not found.");
     }
@@ -103,7 +103,7 @@ class ConversationServiceTest {
         when(messageRepository.findByConversationIdOrderByCreatedAtAsc(conversationId))
                 .thenReturn(List.of(message));
 
-        var responses = service.messages(conversationId);
+        var responses = service.getConversationMessages(conversationId);
 
         assertThat(responses).singleElement().satisfies(response -> {
             assertThat(response.role()).isEqualTo(ChatMessage.Role.ASSISTANT);
@@ -119,11 +119,11 @@ class ConversationServiceTest {
         when(conversationRepository.findById(conversationId)).thenReturn(Optional.of(conversation));
         when(messageRepository.findByConversationIdOrderByCreatedAtDesc(
                 any(UUID.class), any(PageRequest.class))).thenReturn(List.of());
-        when(retrievalService.search(any(AskRequest.class))).thenReturn(List.of());
+        when(retrievalService.findRelevantSources(any(AskRequest.class))).thenReturn(List.of());
         AskRequest request = new AskRequest("What does the guide say?", conversationId,
                 null, null, null, null);
 
-        var response = service.ask(request);
+        var response = service.answerQuestion(request);
 
         assertThat(response.conversationId()).isEqualTo(conversationId);
         assertThat(response.answer()).contains("couldn't find relevant information");
@@ -149,15 +149,15 @@ class ConversationServiceTest {
         when(conversationRepository.findById(conversationId)).thenReturn(Optional.of(conversation));
         when(messageRepository.findByConversationIdOrderByCreatedAtDesc(
                 any(UUID.class), any(PageRequest.class))).thenReturn(history);
-        when(retrievalService.search(any(AskRequest.class))).thenReturn(List.of(citation));
+        when(retrievalService.findRelevantSources(any(AskRequest.class))).thenReturn(List.of(citation));
         when(chatClient.prompt().messages(anyList()).call().content()).thenReturn("Start with step one. [S1]");
         AskRequest request = new AskRequest("What should I do?", conversationId, null, null, null, null);
 
-        var response = service.ask(request);
+        var response = service.answerQuestion(request);
 
         assertThat(response.answer()).isEqualTo("Start with step one. [S1]");
         assertThat(response.sources()).containsExactly(citation);
-        verify(promptBuilder).build(request.question(), history, List.of(citation));
+        verify(promptBuilder).buildGroundedAnswerMessages(request.question(), history, List.of(citation));
         ArgumentCaptor<ChatMessage> messageCaptor = ArgumentCaptor.forClass(ChatMessage.class);
         verify(messageRepository, org.mockito.Mockito.times(2)).save(messageCaptor.capture());
         assertThat(messageCaptor.getAllValues().get(1).getCitationsJson()).contains("guide.pdf", "pageNumber");
@@ -172,11 +172,11 @@ class ConversationServiceTest {
         when(conversationRepository.findById(conversationId)).thenReturn(Optional.of(conversation));
         when(messageRepository.findByConversationIdOrderByCreatedAtDesc(
                 any(UUID.class), any(PageRequest.class))).thenReturn(List.of());
-        when(retrievalService.search(any(AskRequest.class))).thenReturn(List.of(citation));
+        when(retrievalService.findRelevantSources(any(AskRequest.class))).thenReturn(List.of(citation));
         when(chatClient.prompt().messages(anyList()).call().content())
                 .thenThrow(new IllegalStateException("model unavailable"));
 
-        assertThatThrownBy(() -> service.ask(new AskRequest(
+        assertThatThrownBy(() -> service.answerQuestion(new AskRequest(
                 "Question?", conversationId, null, null, null, null)))
                 .isInstanceOf(ApiException.class)
                 .hasMessageContaining("chat model is unavailable");
@@ -187,7 +187,7 @@ class ConversationServiceTest {
         when(conversationRepository.findAll(Sort.by(Sort.Direction.DESC, "updatedAt")))
                 .thenReturn(List.of(new Conversation("Recent"), new Conversation("Older")));
 
-        var results = service.list();
+        var results = service.listConversations();
 
         assertThat(results).extracting(response -> response.title())
                 .containsExactly("Recent", "Older");

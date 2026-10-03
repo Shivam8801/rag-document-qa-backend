@@ -14,7 +14,7 @@ public class PageAwareChunker {
         this.properties = properties;
     }
 
-    public List<DocumentChunk> chunkText(List<String> pageTexts) {
+    public List<DocumentChunk> splitPagesIntoChunks(List<String> pageTexts) {
         int size = properties.getChunkSize();
         int overlap = properties.getChunkOverlap();
         if (overlap < 0 || overlap >= size) {
@@ -24,7 +24,7 @@ public class PageAwareChunker {
 
         // Chunk each page independently so a chunk never combines text from different pages
         for (int pageIndex = 0; pageIndex < pageTexts.size(); pageIndex++) {
-            String text = normalize(pageTexts.get(pageIndex));
+            String text = normalizePageText(pageTexts.get(pageIndex));
             int start = 0;
             while (start < text.length()) {
                 int end = Math.min(start + size, text.length());
@@ -57,7 +57,7 @@ public class PageAwareChunker {
         return List.copyOf(chunks);
     }
 
-    private String normalize(String text) {
+    private String normalizePageText(String text) {
         if (text == null || text.isBlank()) {
             return "";
         }

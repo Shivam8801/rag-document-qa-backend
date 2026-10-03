@@ -19,14 +19,14 @@ class PdfTextExtractorTest {
 
     @Test
     void rejectsFilesThatDoNotHavePdfSignature() {
-        assertThatThrownBy(() -> extractor.extract("not a PDF".getBytes(StandardCharsets.UTF_8)))
+        assertThatThrownBy(() -> extractor.extractPageText("not a PDF".getBytes(StandardCharsets.UTF_8)))
                 .isInstanceOf(ApiException.class)
                 .hasMessageContaining("not a valid PDF");
     }
 
     @Test
     void rejectsMalformedPdfWithPdfSignature() {
-        assertThatThrownBy(() -> extractor.extract("%PDF-1.7\nbroken".getBytes(StandardCharsets.UTF_8)))
+        assertThatThrownBy(() -> extractor.extractPageText("%PDF-1.7\nbroken".getBytes(StandardCharsets.UTF_8)))
                 .isInstanceOf(ApiException.class)
                 .hasMessageContaining("readable PDF");
     }
@@ -35,13 +35,13 @@ class PdfTextExtractorTest {
     void extractsTextSeparatelyForEveryPage() throws IOException {
         byte[] pdf;
         try (PDDocument document = new PDDocument(); ByteArrayOutputStream output = new ByteArrayOutputStream()) {
-            addTextPage(document, "first page");
-            addTextPage(document, "second page");
+            addPdfPageWithText(document, "first page");
+            addPdfPageWithText(document, "second page");
             document.save(output);
             pdf = output.toByteArray();
         }
 
-        PdfTextExtractor.ExtractedPdf extracted = extractor.extract(pdf);
+        PdfTextExtractor.ExtractedPdf extracted = extractor.extractPageText(pdf);
 
         assertThat(extracted.pageCount()).isEqualTo(2);
         assertThat(extracted.pages()).hasSize(2);
@@ -49,7 +49,7 @@ class PdfTextExtractorTest {
         assertThat(extracted.pages().get(1)).contains("second page");
     }
 
-    private void addTextPage(PDDocument document, String text) throws IOException {
+    private void addPdfPageWithText(PDDocument document, String text) throws IOException {
         PDPage page = new PDPage();
         document.addPage(page);
         try (PDPageContentStream stream = new PDPageContentStream(document, page)) {

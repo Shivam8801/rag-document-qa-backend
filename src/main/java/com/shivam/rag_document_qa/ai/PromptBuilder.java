@@ -13,7 +13,8 @@ import org.springframework.stereotype.Component;
 @Component
 public class PromptBuilder {
 
-    public List<Message> build(String question, List<ChatMessage> history, List<CitationResponse> sources) {
+    public List<Message> buildGroundedAnswerMessages(
+            String question, List<ChatMessage> history, List<CitationResponse> sources) {
         StringBuilder context = new StringBuilder();
         for (int i = 0; i < sources.size(); i++) {
             CitationResponse source = sources.get(i);

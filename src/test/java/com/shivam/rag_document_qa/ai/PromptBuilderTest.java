@@ -27,7 +27,8 @@ class PromptBuilderTest {
                 documentId, "leave-policy.pdf", UUID.randomUUID().toString(), 4, 2,
                 "Employees receive 20 days of annual leave.", 0.9));
 
-        var messages = promptBuilder.build("Can unused leave carry over?", history, citations);
+        var messages = promptBuilder.buildGroundedAnswerMessages(
+                "Can unused leave carry over?", history, citations);
 
         assertThat(messages).hasSize(4);
         assertThat(messages.get(0)).isInstanceOf(SystemMessage.class);

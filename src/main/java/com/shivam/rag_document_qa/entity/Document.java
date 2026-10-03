@@ -61,7 +61,7 @@ public class Document {
 
     // runs before a new entity is inserted into the database
     @PrePersist
-    private void onCreate() {
+    private void initializeTimestampsBeforeInsert() {
         Instant now = Instant.now();
         if (createdAt == null) {
             createdAt = now;
@@ -71,11 +71,11 @@ public class Document {
 
     // runs before an existing entity is updated
     @PreUpdate
-    private void onUpdate() {
+    private void updateTimestampBeforeDatabaseUpdate() {
         updatedAt = Instant.now();
     }
 
-    public void rename(String fileName) {
+    public void renameTo(String fileName) {
         this.fileName = fileName;
     }
 }

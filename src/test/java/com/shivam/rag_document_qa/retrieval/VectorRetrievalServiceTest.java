@@ -42,7 +42,7 @@ class VectorRetrievalServiceTest {
 		VectorRetrievalService retrievalService = new VectorRetrievalService(
 				vectorStore, properties, documentRepository);
 
-		var citations = retrievalService.search(new AskRequest(
+		var citations = retrievalService.findRelevantSources(new AskRequest(
 				"How many leave days?", null, documentId, null, null, null));
 
 		assertThat(citations).hasSize(1);

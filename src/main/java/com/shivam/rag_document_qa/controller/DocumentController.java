@@ -37,7 +37,7 @@ public class DocumentController {
     @Operation(summary = "Upload PDF documents",
             description = "Accepts one `file` part or multiple repeated `files` parts. Extracts each PDF page, "
                     + "splits the text into page-aware chunks, generates embeddings, and indexes them in pgvector.")
-    public ResponseEntity<List<DocumentResponse>> upload(
+    public ResponseEntity<List<DocumentResponse>> uploadDocuments(
             @RequestParam(value = "files", required = false) List<MultipartFile> files,
             @RequestParam(value = "file", required = false) MultipartFile file) {
         List<MultipartFile> uploads = new ArrayList<>();
@@ -47,7 +47,7 @@ public class DocumentController {
         if (file != null) {
             uploads.add(file);
         }
-        List<DocumentResponse> responses = documentService.uploadAll(uploads).stream()
+        List<DocumentResponse> responses = documentService.uploadDocuments(uploads).stream()
                 .map(DocumentResponse::fromDocument).toList();
         return ResponseEntity.status(HttpStatus.CREATED).body(responses);
     }
@@ -55,29 +55,30 @@ public class DocumentController {
     @GetMapping
     @Operation(summary = "List indexed documents",
             description = "Returns metadata for all successfully processed documents without exposing extracted text.")
-    public List<DocumentResponse> list() {
-        return documentService.list().stream().map(DocumentResponse::fromDocument).toList();
+    public List<DocumentResponse> listDocuments() {
+        return documentService.listDocuments().stream().map(DocumentResponse::fromDocument).toList();
     }
 
     @GetMapping("/{id}")
     @Operation(summary = "Get document metadata",
             description = "Returns metadata, page count, and indexed chunk count for the requested document.")
-    public DocumentResponse get(@PathVariable UUID id) {
-        return DocumentResponse.fromDocument(documentService.get(id));
+    public DocumentResponse getDocument(@PathVariable UUID id) {
+        return DocumentResponse.fromDocument(documentService.getDocument(id));
     }
 
     @PutMapping("/{id}")
     @Operation(summary = "Rename a document",
             description = "Changes the display name used for the document and its source citations.")
-    public DocumentResponse update(@PathVariable UUID id, @Valid @RequestBody UpdateDocumentRequest request) {
-        return DocumentResponse.fromDocument(documentService.rename(id, request.name()));
+    public DocumentResponse renameDocument(
+            @PathVariable UUID id, @Valid @RequestBody UpdateDocumentRequest request) {
+        return DocumentResponse.fromDocument(documentService.renameDocument(id, request.name()));
     }
 
     @DeleteMapping("/{id}")
     @Operation(summary = "Delete a document",
             description = "Removes document metadata and all associated vectors from pgvector.")
-    public ResponseEntity<Void> delete(@PathVariable UUID id) {
-        documentService.delete(id);
+    public ResponseEntity<Void> deleteDocument(@PathVariable UUID id) {
+        documentService.deleteDocument(id);
         return ResponseEntity.noContent().build();
     }
 }
