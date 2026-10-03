@@ -5,6 +5,8 @@ import com.shivam.rag_document_qa.dto.AskResponse;
 import com.shivam.rag_document_qa.service.ConversationService;
 import jakarta.validation.Valid;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -27,6 +29,12 @@ public class QaController {
             description = "Retrieves relevant chunks from pgvector, optionally filters by document IDs, "
                     + "uses recent conversation history when supplied, and returns an answer with source citations. "
                     + "Omit conversationId to start a new conversation.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Answer and source citations."),
+            @ApiResponse(responseCode = "400", description = "Invalid question or retrieval parameters."),
+            @ApiResponse(responseCode = "404", description = "Conversation or selected document does not exist."),
+            @ApiResponse(responseCode = "503", description = "Retrieval or chat model is unavailable.")
+    })
     public AskResponse answerQuestion(@Valid @RequestBody AskRequest request) {
         return conversationService.answerQuestion(request);
     }

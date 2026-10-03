@@ -5,6 +5,8 @@ import com.shivam.rag_document_qa.dto.UpdateDocumentRequest;
 import com.shivam.rag_document_qa.service.DocumentService;
 import jakarta.validation.Valid;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.ArrayList;
 import java.util.List;
@@ -37,6 +39,13 @@ public class DocumentController {
     @Operation(summary = "Upload PDF documents",
             description = "Accepts one `file` part or multiple repeated `files` parts. Extracts each PDF page, "
                     + "splits the text into page-aware chunks, generates embeddings, and indexes them in pgvector.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "Documents uploaded and indexed."),
+            @ApiResponse(responseCode = "400", description = "Invalid, empty, or missing PDF upload."),
+            @ApiResponse(responseCode = "413", description = "Upload exceeds configured size limits."),
+            @ApiResponse(responseCode = "422", description = "PDF contains no extractable text."),
+            @ApiResponse(responseCode = "503", description = "Vector indexing is unavailable.")
+    })
     public ResponseEntity<List<DocumentResponse>> uploadDocuments(
             @RequestParam(value = "files", required = false) List<MultipartFile> files,
             @RequestParam(value = "file", required = false) MultipartFile file) {
@@ -62,6 +71,10 @@ public class DocumentController {
     @GetMapping("/{id}")
     @Operation(summary = "Get document metadata",
             description = "Returns metadata, page count, and indexed chunk count for the requested document.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Document metadata."),
+            @ApiResponse(responseCode = "404", description = "Document does not exist.")
+    })
     public DocumentResponse getDocument(@PathVariable UUID id) {
         return DocumentResponse.fromDocument(documentService.getDocument(id));
     }
@@ -69,6 +82,11 @@ public class DocumentController {
     @PutMapping("/{id}")
     @Operation(summary = "Rename a document",
             description = "Changes the display name used for the document and its source citations.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Document renamed."),
+            @ApiResponse(responseCode = "400", description = "Name is blank or too long."),
+            @ApiResponse(responseCode = "404", description = "Document does not exist.")
+    })
     public DocumentResponse renameDocument(
             @PathVariable UUID id, @Valid @RequestBody UpdateDocumentRequest request) {
         return DocumentResponse.fromDocument(documentService.renameDocument(id, request.name()));
@@ -77,6 +95,11 @@ public class DocumentController {
     @DeleteMapping("/{id}")
     @Operation(summary = "Delete a document",
             description = "Removes document metadata and all associated vectors from pgvector.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Document and vectors deleted."),
+            @ApiResponse(responseCode = "404", description = "Document does not exist."),
+            @ApiResponse(responseCode = "503", description = "Vector deletion failed; metadata was retained.")
+    })
     public ResponseEntity<Void> deleteDocument(@PathVariable UUID id) {
         documentService.deleteDocument(id);
         return ResponseEntity.noContent().build();
