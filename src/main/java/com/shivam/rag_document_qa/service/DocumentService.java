@@ -45,7 +45,7 @@ public class DocumentService {
         this.properties = properties;
     }
 
-    public List<Document> uploadAll(List<MultipartFile> files) {
+    public List<Document> uploadDocuments(List<MultipartFile> files) {
         if (files == null || files.isEmpty()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "NO_FILES", "At least one PDF file is required.");
         }
@@ -57,18 +57,18 @@ public class DocumentService {
         List<StoredVectorSet> stored = new ArrayList<>();
         try {
             for (MultipartFile file : files) {
-                StoredVectorSet item = uploadOne(file);
+                StoredVectorSet item = processUploadedPdf(file);
                 stored.add(item);
                 uploaded.add(item.document());
             }
             return List.copyOf(uploaded);
         } catch (RuntimeException exception) {
-            rollbackUploads(stored);
+            rollbackUploadedDocuments(stored);
             throw exception;
         }
     }
 
-    private StoredVectorSet uploadOne(MultipartFile file) {
+    private StoredVectorSet processUploadedPdf(MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "EMPTY_FILE", "Uploaded files must not be empty.");
         }
@@ -76,7 +76,7 @@ public class DocumentService {
             throw new ApiException(HttpStatus.PAYLOAD_TOO_LARGE, "FILE_TOO_LARGE",
                     "An uploaded file exceeds the configured size limit.");
         }
-        String name = safeFileName(file.getOriginalFilename());
+        String name = extractSafeFileName(file.getOriginalFilename());
         log.info("Starting document processing for {}", name);
         byte[] bytes;
         try {
@@ -84,9 +84,9 @@ public class DocumentService {
         } catch (IOException exception) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "FILE_READ_ERROR", "The uploaded file could not be read.");
         }
-        PdfTextExtractor.ExtractedPdf pdf = pdfTextExtractor.extract(bytes);
+        PdfTextExtractor.ExtractedPdf pdf = pdfTextExtractor.extractPageText(bytes);
         log.info("Extracted {} pages from {}", pdf.pageCount(), name);
-        List<DocumentChunk> chunks = chunker.chunkText(pdf.pages());
+        List<DocumentChunk> chunks = chunker.splitPagesIntoChunks(pdf.pages());
         if (chunks.isEmpty()) {
             throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "EMPTY_PDF",
                     "The PDF contains no extractable text.");
@@ -98,7 +98,7 @@ public class DocumentService {
         List<String> vectorIds = new ArrayList<>(chunks.size());
         List<org.springframework.ai.document.Document> vectors = new ArrayList<>(chunks.size());
         for (DocumentChunk chunk : chunks) {
-            String vectorId = vectorId(document.getId(), chunk.chunkIndex());
+            String vectorId = createStableVectorId(document.getId(), chunk.chunkIndex());
             vectorIds.add(vectorId);
             Map<String, Object> metadata = new HashMap<>();
             metadata.put("documentId", document.getId().toString());
@@ -119,7 +119,7 @@ public class DocumentService {
             }
         } catch (RuntimeException exception) {
             try {
-                deleteVectorIds(vectorIds);
+                deleteVectorsById(vectorIds);
             } catch (RuntimeException cleanupException) {
                 exception.addSuppressed(cleanupException);
             }
@@ -132,29 +132,29 @@ public class DocumentService {
         return new StoredVectorSet(document, vectorIds);
     }
 
-    public List<Document> list() {
+    public List<Document> listDocuments() {
         return documentRepository.findAll(Sort.by(Sort.Direction.DESC, "createdAt"));
     }
 
-    public Document get(UUID id) {
+    public Document getDocument(UUID id) {
         return documentRepository.findById(id).orElseThrow(() ->
                 new ApiException(HttpStatus.NOT_FOUND, "DOCUMENT_NOT_FOUND", "Document not found."));
     }
 
-    public Document rename(UUID id, String name) {
-        Document document = get(id);
-        document.rename(name.trim());
+    public Document renameDocument(UUID id, String name) {
+        Document document = getDocument(id);
+        document.renameTo(name.trim());
         return documentRepository.save(document);
     }
 
-    public void delete(UUID id) {
-        Document document = get(id);
+    public void deleteDocument(UUID id) {
+        Document document = getDocument(id);
         List<String> ids = new ArrayList<>(document.getChunkCount());
         for (int index = 0; index < document.getChunkCount(); index++) {
-            ids.add(vectorId(id, index));
+            ids.add(createStableVectorId(id, index));
         }
         try {
-            deleteVectorIds(ids);
+            deleteVectorsById(ids);
         } catch (RuntimeException exception) {
             throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "DELETE_FAILED",
                     "Document vectors could not be deleted. The document was not removed.");
@@ -163,11 +163,11 @@ public class DocumentService {
         log.info("Deleted document {} and {} vector chunks", id, ids.size());
     }
 
-    private void rollbackUploads(List<StoredVectorSet> stored) {
+    private void rollbackUploadedDocuments(List<StoredVectorSet> stored) {
         for (int index = stored.size() - 1; index >= 0; index--) {
             StoredVectorSet item = stored.get(index);
             try {
-                deleteVectorIds(item.vectorIds());
+                deleteVectorsById(item.vectorIds());
             } catch (RuntimeException exception) {
                 log.error("Could not roll back vector chunks for document {} ({})",
                         item.document().getId(), exception.getClass().getSimpleName());
@@ -176,14 +176,14 @@ public class DocumentService {
         }
     }
 
-    private void deleteVectorIds(List<String> ids) {
+    private void deleteVectorsById(List<String> ids) {
         for (int start = 0; start < ids.size(); start += VECTOR_DELETE_BATCH_SIZE) {
             int end = Math.min(start + VECTOR_DELETE_BATCH_SIZE, ids.size());
             vectorStore.delete(ids.subList(start, end));
         }
     }
 
-    private String safeFileName(String originalName) {
+    private String extractSafeFileName(String originalName) {
         if (originalName == null || originalName.isBlank()) {
             return "document.pdf";
         }
@@ -195,7 +195,7 @@ public class DocumentService {
         return name.length() > 512 ? name.substring(name.length() - 512) : name;
     }
 
-    public static String vectorId(UUID documentId, int chunkIndex) {
+    public static String createStableVectorId(UUID documentId, int chunkIndex) {
         return UUID.nameUUIDFromBytes((documentId + ":" + chunkIndex).getBytes(StandardCharsets.UTF_8)).toString();
     }
 

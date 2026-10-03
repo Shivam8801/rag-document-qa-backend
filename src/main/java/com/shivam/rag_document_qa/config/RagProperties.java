@@ -36,12 +36,12 @@ public class RagProperties {
     private int maxUploadsPerRequest;
 
     @AssertTrue(message = "chunk overlap must be smaller than chunk size")
-    public boolean isChunkingConfigurationValid() {
+    public boolean isChunkSizeAndOverlapValid() {
         return chunkOverlap < chunkSize;
     }
 
     @AssertTrue(message = "default topK must not exceed max topK")
-    public boolean isTopKConfigurationValid() {
+    public boolean isDefaultTopKWithinMaximum() {
         return defaultTopK <= maxTopK;
     }
 

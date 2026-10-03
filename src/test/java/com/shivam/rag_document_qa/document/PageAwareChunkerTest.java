@@ -16,7 +16,7 @@ class PageAwareChunkerTest {
 		properties.setChunkOverlap(3);
 		PageAwareChunker chunker = new PageAwareChunker(properties);
 
-		List<DocumentChunk> chunks = chunker.chunkText(List.of("alpha beta gamma", "delta epsilon"));
+		List<DocumentChunk> chunks = chunker.splitPagesIntoChunks(List.of("alpha beta gamma", "delta epsilon"));
 
 		assertThat(chunks).isNotEmpty();
 		assertThat(chunks).allSatisfy(chunk -> assertThat(chunk.text().length()).isLessThanOrEqualTo(12));
@@ -36,8 +36,8 @@ class PageAwareChunkerTest {
 		properties.setChunkSize(1000);
 		properties.setChunkOverlap(150);
 		PageAwareChunker chunker = new PageAwareChunker(properties);
-		assertThat(chunker.chunkText(List.of("", " \n\t "))).isEmpty();
-		assertThat(chunker.chunkText(List.of("first page", "", "third page")))
+		assertThat(chunker.splitPagesIntoChunks(List.of("", " \n\t "))).isEmpty();
+		assertThat(chunker.splitPagesIntoChunks(List.of("first page", "", "third page")))
 				.extracting(DocumentChunk::pageNumber).containsOnly(1, 3);
 	}
 }

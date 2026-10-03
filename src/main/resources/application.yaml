@@ -1,51 +1,52 @@
 spring:
+  config:
+    import: optional:file:.env[.properties]
   application:
-    name: rag-document-qa
+    name: ${SPRING_APPLICATION_NAME}
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5433/ragdb}
-    username: ${DB_USERNAME:postgres}
-    password: ${DB_PASSWORD:postgres}
-    driver-class-name: org.postgresql.Driver
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
   jpa:
-    open-in-view: false
+    open-in-view: ${JPA_OPEN_IN_VIEW}
     hibernate:
-      ddl-auto: ${JPA_DDL_AUTO:update}
+      ddl-auto: ${JPA_DDL_AUTO}
     properties:
       hibernate:
-        format_sql: true
+        format_sql: ${HIBERNATE_FORMAT_SQL}
   servlet:
     multipart:
-      max-file-size: ${MAX_FILE_SIZE:20MB}
-      max-request-size: ${MAX_REQUEST_SIZE:100MB}
+      max-file-size: ${MAX_FILE_SIZE}
+      max-request-size: ${MAX_REQUEST_SIZE}
   ai:
     ollama:
-      base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+      base-url: ${OLLAMA_BASE_URL}
       chat:
         options:
-          model: ${OLLAMA_CHAT_MODEL:llama3.2}
-          temperature: 0.2
+          model: ${OLLAMA_CHAT_MODEL}
+          temperature: ${OLLAMA_TEMPERATURE}
       embedding:
         options:
-          model: ${OLLAMA_EMBEDDING_MODEL:nomic-embed-text}
+          model: ${OLLAMA_EMBEDDING_MODEL}
     vectorstore:
       pgvector:
-        initialize-schema: true
-        dimensions: ${EMBEDDING_DIMENSIONS:768}
-        distance-type: COSINE_DISTANCE
-        index-type: HNSW
-        schema-name: public
-        table-name: vector_store
-        remove-existing-vector-store-table: false
+        initialize-schema: ${PGVECTOR_INITIALIZE_SCHEMA}
+        dimensions: ${EMBEDDING_DIMENSIONS}
+        distance-type: ${PGVECTOR_DISTANCE_TYPE}
+        index-type: ${PGVECTOR_INDEX_TYPE}
+        schema-name: ${PGVECTOR_SCHEMA}
+        table-name: ${PGVECTOR_TABLE}
+        remove-existing-vector-store-table: ${PGVECTOR_REMOVE_EXISTING_TABLE}
 
 server:
-  port: ${PORT:8080}
+  port: ${PORT}
 
 rag:
-  chunk-size: ${RAG_CHUNK_SIZE:1000}
-  chunk-overlap: ${RAG_CHUNK_OVERLAP:150}
-  default-top-k: ${RAG_DEFAULT_TOP_K:5}
-  max-top-k: ${RAG_MAX_TOP_K:20}
-  similarity-threshold: ${RAG_SIMILARITY_THRESHOLD:0.65}
-  max-history-messages: ${RAG_MAX_HISTORY_MESSAGES:12}
-  max-upload-bytes: ${RAG_MAX_UPLOAD_BYTES:20971520}
-  max-uploads-per-request: ${RAG_MAX_UPLOADS_PER_REQUEST:5}
+  chunk-size: ${RAG_CHUNK_SIZE}
+  chunk-overlap: ${RAG_CHUNK_OVERLAP}
+  default-top-k: ${RAG_DEFAULT_TOP_K}
+  max-top-k: ${RAG_MAX_TOP_K}
+  similarity-threshold: ${RAG_SIMILARITY_THRESHOLD}
+  max-history-messages: ${RAG_MAX_HISTORY_MESSAGES}
+  max-upload-bytes: ${RAG_MAX_UPLOAD_BYTES}
+  max-uploads-per-request: ${RAG_MAX_UPLOADS_PER_REQUEST}

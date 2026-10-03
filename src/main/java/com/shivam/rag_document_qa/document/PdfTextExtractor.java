@@ -13,10 +13,10 @@ import org.springframework.stereotype.Component;
 @Component
 public class PdfTextExtractor {
 
-    public ExtractedPdf extract(byte[] content) {
+    public ExtractedPdf extractPageText(byte[] content) {
 
         // Reject missing/empty uploads and files without a valid PDF header
-        if (!hasPdfHeader(content)) {
+        if (!containsPdfHeader(content)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_PDF", "The uploaded file is not a valid PDF.");
         }
 
@@ -46,7 +46,7 @@ public class PdfTextExtractor {
         }
     }
 
-    private boolean hasPdfHeader(byte[] content) {
+    private boolean containsPdfHeader(byte[] content) {
         byte[] header = "%PDF-".getBytes(java.nio.charset.StandardCharsets.US_ASCII);
         int searchLimit = Math.min(content.length - header.length, 1024);
         for (int start = 0; start <= searchLimit; start++) {
